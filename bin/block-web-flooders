@@ -17,6 +17,8 @@ my %Opts = (
     limit => undef,
     has => [],
     lacks => [],
+    has_pattern => [],
+    lacks_pattern => [],
     period => 300,
     whitelist_ip => [],
     # ports => [80, 443],
@@ -56,6 +58,10 @@ Options:
                 multiple times.
   --lacks=S     The opposite of --has. Only consider lines which do not have
                 string 'S'. Can be specified multiple times.
+  --has-pattern=REGEX
+                Like --has, but you can specify regex pattern.
+  --lacks-pattern=REGEX
+                Like --lacks, but you can specify regex pattern.
   --limit=N     Start blocking IP which has requested more than N times
                 during the period.
   --period=N    Period to count speed limit, in seconds (default: 300,
@@ -71,17 +77,22 @@ EOT
             print "$PROG version ", ($main::VERSION // "dev"), "\n";
             exit 0;
         },
-        'whitelist-ip=s' => \$Opts{whitelist_ip},
-        'has=s' => \$Opts{has},
-        'lacks=s' => \$Opts{lacks},
+        'whitelist-ip=s' => $Opts{whitelist_ip},
+        'has=s' => $Opts{has},
+        'has-pattern=s' => $Opts{has_pattern},
+        'lacks=s' => $Opts{lacks},
+        'lacks-pattern=s' => $Opts{lacks_pattern},
         'limit=i' => \$Opts{limit},
         'period=i' => \$Opts{period},
         'dry-run' => \$Opts{dry_run},
     );
 
-    warn "$PROG: No whitelist_ip specified\n";
-    die "$PROG: Please specify --limit\n" unless $Opts{limit} > 0;
+    warn "$PROG: No whitelist_ip specified\n" unless @{ $Opts{whitelist_ip} };
+    die "$PROG: Please specify --limit\n" unless defined($Opts{limit}) && $Opts{limit} > 0;
     die "$PROG: Please specify positive --period\n" unless $Opts{period} > 0;
+
+    $Opts{has_pattern}   = [map { qr/$_/ } @{ $Opts{has_pattern} }  ];
+    $Opts{lacks_pattern} = [map { qr/$_/ } @{ $Opts{lacks_pattern} }];
 }
 
 sub run {
@@ -105,6 +116,7 @@ sub run {
                "-p", "tcp", "-m", "multiport", "--dports", "80,443",
                "-j", "DROP",
            );
+        unshift @messages, "$ip BLOCKED";
         $num_blocked++;
     };
 
@@ -137,6 +149,7 @@ sub run {
         }
 
         if (!$last_update_time || $last_update_time <= $now-2) {
+            print "\e[2J\e[;H"; # clear screen + put cursor at top (0,0)
             printf "Blocked IPs this session: %s%4d%s | Log lines: %s%6d%s | Running for: %s%s%s\n",
                 color('bold'), $num_blocked, color('reset'),
                 color('bold'), $num_lines, color('reset'),
@@ -160,10 +173,12 @@ sub run {
 
 # MAIN
 
+die "$PROG: Please run me as root\n" if $>;
 read_config();
 parse_options();
 run();
 
+# PODNAME:
 # ABSTRACT: Block IP addresses of web flooders using iptables
 
 =head1 SYNOPSIS
@@ -275,7 +290,11 @@ To use this script, see the general guide in the Synopsis.
 
 =item * --has=S
 
+=item * --has-pattern=REGEX
+
 =item * --lacks=S
+
+=item * --lacks-pattern=REGEX
 
 =item * --limit=N
 
