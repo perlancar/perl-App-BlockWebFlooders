@@ -1,3 +1,10 @@
+0.003   2017-06-08 (PERLANCAR)
+
+	- No functional changes.
+
+	- Fix Getopt::Long configuration.
+
+
 0.002   2017-06-08 (PERLANCAR)
 
 	- [doc] Update/tweak example.
