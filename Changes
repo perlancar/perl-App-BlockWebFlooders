@@ -1,3 +1,10 @@
+0.002   2017-06-08 (PERLANCAR)
+
+	- [doc] Update/tweak example.
+
+	- [Bugfix] Don't block the same IP multiple times.
+
+
 0.001   2017-06-07 (PERLANCAR)
 
         - First release.
