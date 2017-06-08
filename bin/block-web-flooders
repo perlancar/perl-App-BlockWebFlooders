@@ -105,6 +105,7 @@ sub run {
     my $last_update_time;
     my %ips; # key = ip address, value = expiring array
     my %whitelisted = map { $_=>1 } @{ $Opts{whitelist_ip} }; # key = ip address
+    my %blocked; # key = ip address
     my $num_blocked = 0;
     my $num_lines = 0;
     tie my @messages, "Tie::Array::Expire", 15;
@@ -130,6 +131,7 @@ sub run {
             next;
         };
         my $ip = $1;
+        next if $blocked{$ip};
 
         for my $has (@{ $Opts{has} }) {
             next LINE unless index($line, $has) >= 0;
@@ -146,6 +148,7 @@ sub run {
         if (@{ $ips{$ip} } > $Opts{limit} && !$whitelisted{$ip}) {
             $code_block->($ip);
             delete $ips{$ip};
+            $blocked{$ip}++;
         }
 
         if (!$last_update_time || $last_update_time <= $now-2) {
