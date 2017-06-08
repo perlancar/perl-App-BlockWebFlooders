@@ -46,8 +46,6 @@ sub read_config {
 }
 
 sub parse_options {
-    require Getopt::Long;
-
     Getopt::Long::GetOptions(
         'help|h|?' => sub {
             print "Usage: $PROG [options]\n";
