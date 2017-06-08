@@ -226,19 +226,21 @@ you can add C<--has Presto/2.2.0> and C<--has /heavy> since these quite
 accurately selects the flood requests. If you can add strings which pretty
 accurately single out the flood requests, you can use a lower threshold speed,
 e.g. C<--limit 5> to block IPs which has requested 5 or more in the last 5
-minutes. Otherwise, if you do not have any C<--has> to single out the flood, you
-might need to set a higher limit, e.g. C<--limit 20> to block IPs which have
-requested 20 or more requests in the last 5 minutes.
+minutes. Otherwise, if you do not have any specific C<--has> to single out the
+flood, you might need to set a higher limit, e.g. C<--has html --limit 30
+--period 60> to block IPs which have requested 30 or more requests in the last
+minute, or C<--limit 200 --period 120> to block IPs which have requested 200 or
+more requests in the last 2 minutes.
 
 Feed the output of the C<tail> command to this script:
 
  # tail -f /s/example.com/syslog/https_access.2017-06-07.log | block-web-flooders \
-   --has Presto/2.2.0 --has /heavy --limit 5
+   --has Presto/2.2.0 --has-pattern '/heavy|/baz' --limit 5
 
 or perhaps:
 
  # tail -f /s/example.com/syslog/https_access.2017-06-07.log | block-web-flooders \
-   --limit 20/300
+   --limit 200 --period 120
 
 The script will display the top IP addresses and whether an IP is being blocked,
 along with some statistics:
@@ -263,7 +265,7 @@ of web server processes, this depends on the web server you use):
  # watch 'w | head -n1; echo -n "Blocked IPs total: "; iptables -nL INPUT | wc -l; echo -n "Apache processes: "; ps ax | grep apache | wc -l'
 
 If your webserver is still maxed out by requests, you might want to tweak
-C<--limit> option and restart the web server.
+C<--limit> and C<--period> options and restart the web server.
 
 To see the blocked IP addresses:
 
