@@ -72,7 +72,7 @@ For more details, see the documentation (man $PROG).
 EOT
             exit 0;
         },
-        'version' => sub {
+        'version|v' => sub {
             no warnings 'once';
             print "$PROG version ", ($main::VERSION // "dev"), "\n";
             exit 0;
