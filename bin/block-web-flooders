@@ -10,6 +10,7 @@ use warnings;
 use Getopt::Long qw(:config no_ignore_case bundling no_ignore_case gnu_compat no_getopt_compat);
 use IPC::System::Options qw(system);
 use Term::ANSIColor;
+use Time::HiRes 'sleep';
 
 my $PROG = 'block-web-flooders';
 
@@ -104,7 +105,6 @@ EOT
 
 sub run {
     #require Term::Size;
-    require IO::Tail;
     require Tie::Array::Expire;
     require Time::Duration;
 
@@ -132,107 +132,77 @@ sub run {
         $num_blocked++;
     };
 
-    my @buffer; # each element = line
-    my $tail = IO::Tail->new;
+    local *INPUT;
     if (defined $Opts{spanel_site}) {
+        require Tie::Handle::TailSwitch;
         my $dir = "/s/$Opts{spanel_site}/syslog";
-        chdir $dir or die "$PROG: Can't chdir to $dir: $!\n";
+        tie *INPUT, 'Tie::Handle::TailSwitch', (
+            globs => ["$dir/https_access.*.log", "$dir/http_access.*.log"],
+        );
     } else {
-        $tail->add(\*STDIN, sub { push @buffer, split /^/m, ${$_[0]} });
+        *INPUT = \*STDIN;
     }
 
   LINE:
     while (1) {
+        my $line = <INPUT>;
+        if (!defined($line) || !length($line)) {
+            sleep 0.5;
+            next;
+        }
+
         my $now = time();
+        $num_lines++;
+        chomp $line;
+        $line =~ /\A(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s/ or do {
+            warn "$PROG: Line '$line': Can't parse IP address, skipped\n";
+            next;
+        };
+        my $ip = $1;
+        next if $blocked{$ip};
 
-        # consume lines from buffer
-        for my $line (@buffer) {
-            $num_lines++;
-            chomp $line;
-            $line =~ /\A(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s/ or do {
-                warn "$PROG: Line '$line': Can't parse IP address, skipped\n";
-                next;
-            };
-            my $ip = $1;
-            next if $blocked{$ip};
-
-            for my $has (@{ $Opts{has} }) {
-                next LINE unless index($line, $has) >= 0;
-            }
-            for my $lacks (@{ $Opts{lacks} }) {
-                next LINE if index($line, $lacks) >= 0;
-            }
-
-            $ips{$ip} //= do {
-                tie my @ary, "Tie::Array::Expire", $Opts{period};
-                \@ary;
-            };
-            push @{ $ips{$ip} }, 1;
-            if (@{ $ips{$ip} } > $Opts{limit} && !$whitelisted{$ip}) {
-                $code_block->($ip);
-                delete $ips{$ip};
-                $blocked{$ip}++;
-            }
-
-            if (!$last_update_output_time || $last_update_output_time <= $now-2) {
-                print "\e[2J\e[;H"; # clear screen + put cursor at top (0,0)
-                printf "Blocked IPs this session: %s%4d%s | Log lines: %s%6d%s | Running for: %s%s%s\n",
-                    color('bold'), $num_blocked, color('reset'),
-                    color('bold'), $num_lines, color('reset'),
-                    color('bold'), Time::Duration::concise(Time::Duration::duration($now-$^T, 2)), color('reset');
-                $last_update_output_time = $now;
-                printf "Top IPs:\n";
-                my $i = 0;
-                for my $ip (sort { scalar(@{ $ips{$b} }) <=> scalar(@{ $ips{$a} }) } keys %ips) {
-                    last if $i++ >= 10;
-                    printf "  %15s (%4d)\n", $ip, scalar(@{ $ips{$ip} });
-                }
-                printf "Last messages:\n";
-                $i = 0;
-                for my $msg (@messages) {
-                    last if $i++ >= 5;
-                    print "  $msg\n";
-                }
-            }
+        for my $has (@{ $Opts{has} }) {
+            next LINE unless index($line, $has) >= 0;
+        }
+        for my $lacks (@{ $Opts{lacks} }) {
+            next LINE if index($line, $lacks) >= 0;
         }
 
-        # check newest spanel log file
-        if (defined($Opts{spanel_site}) &&
-                (!$last_check_spanel_log_time || $last_check_spanel_log_time < $now - 5)) {
-
-            my @names;
-
-            @names = sort(glob "http_access.*.log");
-            if (@names) {
-                if (!$spanel_http_log_name || $spanel_http_log_name ne $names[-1]) {
-                    # newest log has changed
-                    $tail->remove_file($spanel_http_log_name) if $spanel_http_log_name;
-                    $spanel_http_log_name = $names[-1];
-                    $tail->add(
-                        $spanel_http_log_name, sub {
-                            push @buffer, split /^/m, ${$_[0]};
-                        });
-                }
-            }
-
-            @names = sort(glob "https_access.*.log");
-            if (@names) {
-                if (!$spanel_https_log_name || $spanel_https_log_name ne $names[-1]) {
-                    # newest log has changed
-                    $tail->remove_file($spanel_https_log_name) if $spanel_https_log_name;
-                    $spanel_https_log_name = $names[-1];
-                    $tail->add(
-                            $spanel_https_log_name, sub {
-                                push @buffer, split /^/m, ${$_[0]};
-                            });
-                }
-            }
-
-            $last_check_spanel_log_time = $now;
+        $ips{$ip} //= do {
+            tie my @ary, "Tie::Array::Expire", $Opts{period};
+            \@ary;
+        };
+        push @{ $ips{$ip} }, 1;
+        if (@{ $ips{$ip} } > $Opts{limit} && !$whitelisted{$ip}) {
+            $code_block->($ip);
+            delete $ips{$ip};
+            $blocked{$ip}++;
         }
 
-        $tail->check;
-        sleep 1;
+      OUTPUT:
+        {
+            last unless !$last_update_output_time ||
+                $last_update_output_time <= $now-2;
+            print "\e[2J\e[;H"; # clear screen + put cursor at top (0,0)
+            printf "Blocked IPs this session: %s%4d%s | Log lines: %s%6d%s | Running for: %s%s%s\n",
+                color('bold'), $num_blocked, color('reset'),
+                color('bold'), $num_lines, color('reset'),
+                color('bold'), Time::Duration::concise(Time::Duration::duration($now-$^T, 2)), color('reset');
+            $last_update_output_time = $now;
+            printf "Top IPs:\n";
+            my $i = 0;
+            for my $ip (sort { scalar(@{ $ips{$b} }) <=> scalar(@{ $ips{$a} }) } keys %ips) {
+                last if $i++ >= 10;
+                printf "  %15s (%4d)\n", $ip, scalar(@{ $ips{$ip} });
+            }
+            printf "Last messages:\n";
+            $i = 0;
+            for my $msg (@messages) {
+                last if $i++ >= 5;
+                print "  $msg\n";
+            }
+        } # OUTPUT
+
     }
 }
 
