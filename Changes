@@ -1,3 +1,10 @@
+0.004   2017-06-09 (PERLANCAR)
+
+        - Add option: --spanel-site.
+
+        - [ux] Add -v as alias for --version.
+
+
 0.003   2017-06-08 (PERLANCAR)
 
 	- No functional changes.
