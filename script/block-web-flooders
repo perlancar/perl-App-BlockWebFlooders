@@ -150,6 +150,7 @@ sub run {
 
     # load blocked ips from db
     my $sth = $dbh->prepare("SELECT * FROM blocked");
+    $sth->execute;
     while (my $row = $sth->fetchrow_hashref) { $blocked{ $row->{ip} } = $row->{ctime} }
 
     my $code_block_or_unblock = sub {
@@ -229,7 +230,7 @@ sub run {
             last unless !$last_update_output_time ||
                 $last_update_output_time <= $now-2;
             print "\e[2J\e[;H"; # clear screen + put cursor at top (0,0)
-            printf "Blocked IPs this session: %s%4d%s | Log lines: %s%6d%s | Running for: %s%s%s\n",
+            printf "Blocked IPs: %s%4d%s | Log lines: %s%6d%s | Running for: %s%s%s\n",
                 color('bold'), (scalar keys %blocked), color('reset'),
                 color('bold'), $num_lines, color('reset'),
                 color('bold'), Time::Duration::concise(Time::Duration::duration($now-$^T, 2)), color('reset');
