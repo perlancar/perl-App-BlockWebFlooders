@@ -63,9 +63,12 @@ sub parse_options {
 Usage: $PROG [options]
 Options:
   --has=S       Only consider lines which have string 'S'. Can be specified
-                multiple times.
+                multiple times. If specified multiple times, it means lines
+                must match *all* strings to be considered.
   --lacks=S     The opposite of --has. Only consider lines which do not have
-                string 'S'. Can be specified multiple times.
+                string 'S'. Can be specified multiple times. If specified
+                multiple times, it means lines must lack *all* strings to be
+                considered.
   --has-pattern=REGEX
                 Like --has, but you can specify regex pattern.
   --lacks-pattern=REGEX
@@ -213,6 +216,12 @@ sub run {
         }
         for my $lacks (@{ $Opts{lacks} }) {
             next LINE if index($line, $lacks) >= 0;
+        }
+        for my $pat (@{ $Opts{has_pattern} }) {
+            next LINE unless $line =~ $pat;
+        }
+        for my $pat (@{ $Opts{lacks_pattern} }) {
+            next LINE if $line =~ $pat;
         }
 
         $ips{$ip} //= do {
