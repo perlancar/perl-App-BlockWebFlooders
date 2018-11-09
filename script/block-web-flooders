@@ -14,6 +14,13 @@ use Time::HiRes 'sleep';
 
 my $PROG = 'block-web-flooders';
 
+my $dbspec = {
+    latest_v => 1,
+    install => [
+        'CREATE TABLE blocked (ip TEXT NOT NULL PRIMARY KEY, ctime INT NOT NULL)',
+    ],
+};
+
 my %Opts = (
     limit => undef,
     has => [],
@@ -21,6 +28,7 @@ my %Opts = (
     has_pattern => [],
     lacks_pattern => [],
     period => 300,
+    block_period => 86400,
     whitelist_ip => [],
     # ports => [80, 443],
     spanel_site => undef,
@@ -66,6 +74,9 @@ Options:
                 during the period.
   --period=N    Period to count speed limit, in seconds (default: 300,
                 which means 5 minutes).
+  --block-period=N
+                Period of blocking an IP, in seconds (default: 86400, which
+                means 24 hours a.k.a. 1 day).
   --dry-run     Do not actually block with iptables, simulation mode.
   --spanel-site=NAME
                 Instead of piping output of tail -f manually, you can use this
@@ -87,6 +98,7 @@ EOT
         'lacks-pattern=s' => $Opts{lacks_pattern},
         'limit=i' => \$Opts{limit},
         'period=i' => \$Opts{period},
+        'block-period=i' => \$Opts{block_period},
         'dry-run' => \$Opts{dry_run},
         'spanel-site=s' => \$Opts{spanel_site},
     );
@@ -103,10 +115,25 @@ EOT
     $Opts{lacks_pattern} = [map { qr/$_/ } @{ $Opts{lacks_pattern} }];
 }
 
+sub connectdb {
+    require DBI;
+    require SQL::Schema::Versioned;
+
+    my $dbh = DBI->connect("dbi:SQLite:dbname=/var/run/block-web-flooders.db");
+
+    my $res = SQL::Schema::Versioned::create_or_update_db_schema(
+        dbh => $dbh, spec => $dbspec);
+    die "Cannot initialize DB: $res->[0] - $res->[1]" unless $res->[0] == 200;
+
+    $dbh;
+}
+
 sub run {
     #require Term::Size;
     require Tie::Array::Expire;
     require Time::Duration;
+
+    my $dbh = connectdb();
 
     #my ($columns, $rows) = Term::Size::chars *STDOUT{IO};
 
@@ -114,23 +141,42 @@ sub run {
     my ($spanel_http_log_name, $spanel_https_log_name);
 
     my $last_update_output_time;
+    my $last_unblock_time;
     my %ips; # key = ip address, value = expiring array
     my %whitelisted = map { $_=>1 } @{ $Opts{whitelist_ip} }; # key = ip address
-    my %blocked; # key = ip address
-    my $num_blocked = 0;
+    my %blocked; # key = ip address, value = unix time (time blocked)
     my $num_lines = 0;
     tie my @messages, "Tie::Array::Expire", 15;
 
-    my $code_block = sub {
-        my $ip = shift;
+    # load blocked ips from db
+    my $sth = $dbh->prepare("SELECT * FROM blocked");
+    while (my $row = $sth->fetchrow_hashref) { $blocked{ $row->{ip} } = $row->{ctime} }
+
+    my $code_block_or_unblock = sub {
+        my ($which, $ip) = @_;
+        if ($which eq 'block') {
+            return if $blocked{$ip};
+        } else {
+            return unless $blocked{$ip};
+        }
         system({die => 1, dry_run => $Opts{dry_run}},
-               "iptables", "-A", "INPUT", "-s", $ip,
+               "iptables", ($which eq 'block' ? "-A" : "-D"), "INPUT", "-s", $ip,
                "-p", "tcp", "-m", "multiport", "--dports", "80,443",
                "-j", "DROP",
            );
-        unshift @messages, "$ip BLOCKED".($Opts{dry_run} ? " (dry-run)" : "");
-        $num_blocked++;
+        my $now = time();
+        if ($which eq 'block') {
+            unshift @messages, "$ip BLOCKED".($Opts{dry_run} ? " (dry-run)" : "");
+            $dbh->do("INSERT OR IGNORE INTO blocked (ip,ctime) VALUES (?,?)", {}, $ip, $now);
+            $blocked{$ip} = time();
+        } else {
+            unshift @messages, "$ip unblocked".($Opts{dry_run} ? " (dry-run)" : "");
+            $dbh->do("DELETE FROM blocked WHERE ip=?", {}, $ip);
+            delete $blocked{$ip};
+        }
     };
+    my $code_block   = sub { $code_block_or_unblock->('block'  , @_) };
+    my $code_unblock = sub { $code_block_or_unblock->('unblock', @_) };
 
     local *INPUT;
     if (defined $Opts{spanel_site}) {
@@ -176,7 +222,6 @@ sub run {
         if (@{ $ips{$ip} } > $Opts{limit} && !$whitelisted{$ip}) {
             $code_block->($ip);
             delete $ips{$ip};
-            $blocked{$ip}++;
         }
 
       OUTPUT:
@@ -185,7 +230,7 @@ sub run {
                 $last_update_output_time <= $now-2;
             print "\e[2J\e[;H"; # clear screen + put cursor at top (0,0)
             printf "Blocked IPs this session: %s%4d%s | Log lines: %s%6d%s | Running for: %s%s%s\n",
-                color('bold'), $num_blocked, color('reset'),
+                color('bold'), (scalar keys %blocked), color('reset'),
                 color('bold'), $num_lines, color('reset'),
                 color('bold'), Time::Duration::concise(Time::Duration::duration($now-$^T, 2)), color('reset');
             $last_update_output_time = $now;
@@ -203,6 +248,16 @@ sub run {
             }
         } # OUTPUT
 
+      UNBLOCK:
+        {
+            last unless !$last_unblock_time ||
+                $last_unblock_time <= $now-60;
+            for (keys %blocked) {
+                next unless $blocked{$_} < $now - $Opts{block_period};
+                $code_unblock->($_);
+            }
+            $last_unblock_time = $now;
+        } # UNBLOCK
     }
 }
 
@@ -303,7 +358,12 @@ To see the blocked IP addresses:
 
  # iptables -nL INPUT
 
-To clear/unblock all the IPs:
+As long as the script runs, IP addresses are blocked by default temporarily for
+86400 seconds (or, according to the --block-period command-line option or
+block_period configuration). After that block period is exceeded, the IP is
+unblocked.
+
+To immediately clear/unblock all the IPs:
 
  # iptables -F INPUT
 
