@@ -2,6 +2,7 @@
 
 # currently dummy
 
-use Test::More;
+use Test::More 0.98;
 
 ok 1;
+done_testing;

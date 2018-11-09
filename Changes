@@ -1,3 +1,12 @@
+0.005   2018-11-10 (PERLANCAR)
+
+	- Now by default only blocks an IP for 86400 seconds.
+
+        - Store blocklist in SQLite database to persist between runs.
+
+	- [doc] Forgot to list --spanel-site under Options.
+
+
 0.004   2017-06-09 (PERLANCAR)
 
         - Add option: --spanel-site.
