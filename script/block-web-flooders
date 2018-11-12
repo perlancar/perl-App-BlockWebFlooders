@@ -429,3 +429,8 @@ IPv6 support.
 
 Some interactivity, e.g.: reset counters, unblock some IPs, increase/decrease
 limit.
+
+
+=head1 SEE ALSO
+
+CSF, L<https://configserver.com/cp/csf.html>, the more generic solution.
