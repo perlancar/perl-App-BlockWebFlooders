@@ -377,6 +377,9 @@ To immediately clear/unblock all the IPs:
 
  # iptables -F INPUT
 
+(this is assuming the default policy of input is ACCEPT; if you have a firewall
+package installed, please follow the procedure for that firewall.)
+
 
 =head1 DESCRIPTION
 
