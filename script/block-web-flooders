@@ -43,9 +43,15 @@ sub read_config {
         next unless -f $path;
         my $hoh = $iod->read_file($path);
         for my $sect (keys %$hoh) {
-            next unless $sect eq 'GLOBAL';
+            unless ($sect eq 'GLOBAL') {
+                warn "$PROG: Unknown config section '$sect', ignored\n";
+                next;
+            }
             my $h = $hoh->{$sect};
             for my $k (keys %$h) {
+                unless (exists $Opts{$k}) {
+                    die "$PROG: Unknown config parameter '$k', please fix it first\n";
+                }
                 my $v = $h->{$k};
                 $Opts{$k} = $v;
             }
