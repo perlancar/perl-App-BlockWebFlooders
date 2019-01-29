@@ -550,7 +550,28 @@ To use this script, see the general guide in the Synopsis.
 
 =head1 OPTIONS
 
+For now, see more detail information about each option using
+C<block-web-flooders --help>.
+
 =over
+
+=item * --action=S
+
+=item * --list-blocked
+
+Shortcut for --action=list_blocked
+
+=item * --block
+
+Shortcut for --action=block
+
+=item * --unblock
+
+Shortcut for --action=unblock
+
+=item * --unblock-all
+
+Shortcut for --action=unblock_all
 
 =item * --has=S
 
@@ -569,6 +590,8 @@ To use this script, see the general guide in the Synopsis.
 =item * --spanel-site=NAME
 
 =item * --dry-run
+
+=item * --detail, -l
 
 =back
 
