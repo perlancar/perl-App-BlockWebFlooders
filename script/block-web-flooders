@@ -163,11 +163,16 @@ sub run {
         } else {
             return unless $blocked{$ip};
         }
-        system({die => 1, dry_run => $Opts{dry_run}},
-               "iptables", ($which eq 'block' ? "-A" : "-D"), "INPUT", "-s", $ip,
-               "-p", "tcp", "-m", "multiport", "--dports", "80,443",
-               "-j", "DROP",
-           );
+        system(
+            {
+                die => ($which eq 'block' ? 1:0),
+                dry_run => $Opts{dry_run},
+                (capture_stderr => \my $stderr) x ($which eq 'block' ? 0:1),
+            },
+            "iptables", ($which eq 'block' ? "-A" : "-D"), "INPUT", "-s", $ip,
+            "-p", "tcp", "-m", "multiport", "--dports", "80,443",
+            "-j", "DROP",
+        );
         my $now = time();
         if ($which eq 'block') {
             unshift @messages, "$ip BLOCKED".($Opts{dry_run} ? " (dry-run)" : "");
