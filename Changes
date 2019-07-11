@@ -1,4 +1,4 @@
-0.010   2019-01-29 (PERLANCAR)
+0.010   2019-01-29  Released-By: PERLANCAR
 
 	- Add --action and actions: block, unblock, unblock_all,
 	  list_blocked.
@@ -12,7 +12,7 @@
 	  unknown param.
 
 
-0.009   2018-11-12 (PERLANCAR)
+0.009   2018-11-12  Released-By: PERLANCAR
 
 	- No functional changes.
 
@@ -21,22 +21,22 @@
 	- [doc] Mention possible conflict with firewall package.
 
 
-0.008   2018-11-10 (PERLANCAR)
+0.008   2018-11-10  Released-By: PERLANCAR
 
 	- [Bugfix] Fix code ordering so display update is proper.
 
 
-0.007   2018-11-10 (PERLANCAR)
+0.007   2018-11-10  Released-By: PERLANCAR
 
 	- [Bugfix] --has-pattern and --lacks-pattern were not considered.
 
 
-0.006   2018-11-10 (PERLANCAR)
+0.006   2018-11-10  Released-By: PERLANCAR
 
 	- [Bugfix] Display the correct number of blocked IPs.
 
 
-0.005   2018-11-10 (PERLANCAR)
+0.005   2018-11-10  Released-By: PERLANCAR
 
 	- Now by default only blocks an IP for 86400 seconds.
 
@@ -45,27 +45,27 @@
 	- [doc] Forgot to list --spanel-site under Options.
 
 
-0.004   2017-06-09 (PERLANCAR)
+0.004   2017-06-09  Released-By: PERLANCAR
 
         - Add option: --spanel-site.
 
         - [ux] Add -v as alias for --version.
 
 
-0.003   2017-06-08 (PERLANCAR)
+0.003   2017-06-08  Released-By: PERLANCAR
 
 	- No functional changes.
 
 	- Fix Getopt::Long configuration.
 
 
-0.002   2017-06-08 (PERLANCAR)
+0.002   2017-06-08  Released-By: PERLANCAR
 
 	- [doc] Update/tweak example.
 
 	- [Bugfix] Don't block the same IP multiple times.
 
 
-0.001   2017-06-07 (PERLANCAR)
+0.001   2017-06-07  Released-By: PERLANCAR
 
         - First release.
